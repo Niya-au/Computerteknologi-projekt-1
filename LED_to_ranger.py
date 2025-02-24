@@ -1,12 +1,14 @@
+
 from gpiozero import LED
 from time import sleep
-# coding: utf-8
+
 import time
 import RPi.GPIO as GPIO
 
 # Use BCM GPIO references
 # instead of physical pin numbers
 GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 
 # Define GPIO to use on Pi
 GPIO_TRIGECHO = 18
@@ -19,7 +21,6 @@ GPIO.setup(GPIO_TRIGECHO,GPIO.OUT)  # Initial state as output
 
 # Set trigger to False (Low)
 GPIO.output(GPIO_TRIGECHO, False)
-
 
 def measure():
   # This function measures a distance
@@ -38,7 +39,7 @@ def measure():
   # Wait for end of echo response
     while GPIO.input(GPIO_TRIGECHO)==1:
         stop = time.time()
-  
+
     GPIO.setup(GPIO_TRIGECHO, GPIO.OUT)
     GPIO.output(GPIO_TRIGECHO, False)
 
@@ -48,33 +49,29 @@ def measure():
     return distance
 
 try:
+   while True:
+      distance = measure()
+      print ("  Distance : %.1f cm" % distance)
+      time.sleep(1)
 
-    while True:
+      if 25 < distance <= 30:
+         led.on()
+         sleep(2)
+         led.off()
+         sleep(2)
 
-        distance = measure()
-        #print ("  Distance : %.1f cm" % distance)
-        time.sleep(1)
+      if 18 < distance <= 25:
+         led.on()
+         sleep(1)
+         led.off()
+         sleep(1)
+
+      if distance <= 18:
+         led.on()
+         sleep(0.5)
+         led.off()
+         sleep(0.5)
 
 except KeyboardInterrupt:
     print("Stop")
     GPIO.cleanup()
-
-led = LED(17)
-
-while 25 < distance <= 30:
-    led.on()
-    sleep(2)
-    led.off()
-    sleep(2)
-
-while 18 < distance <= 25:
-    led.on()
-    sleep(1)
-    led.off()
-    sleep(1)
-
-while distance <= 18:
-    led.on()
-    sleep(0.5)
-    led.off()
-    sleep(0.5)
