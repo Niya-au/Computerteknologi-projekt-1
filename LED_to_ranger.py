@@ -49,6 +49,7 @@ def measure():
     return distance
 
 try:
+   #based on the distance returned from measure, the led blinks for a certain amount of time
    while True:
       distance = measure()
       print ("  Distance : %.1f cm" % distance)
@@ -72,6 +73,7 @@ try:
          led.off()
          sleep(0.5)
 
+#program exits when ctrl C
 except KeyboardInterrupt:
     print("Stop")
     GPIO.cleanup()
