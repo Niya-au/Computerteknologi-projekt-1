@@ -37,9 +37,13 @@ class Turtlebot3ObstacleDetection(Node):
         self.scan_ranges = []
         self.has_scan_received = False
 
+        #distance at which the robot stops from an object
         self.stop_distance = 0.5
+        #works with angular velocity
         self.tele_twist = Twist()
+        #intial/base velocity
         self.tele_twist.linear.x = 0.1
+        #initial/base angular velocity
         self.tele_twist.angular.z = 0.0
 
         qos = QoSProfile(depth=10)
@@ -81,10 +85,20 @@ class Turtlebot3ObstacleDetection(Node):
         )
 
         twist = Twist()
+        #when it detects a distance self.stop_distance from the object
         if obstacle_distance < self.stop_distance:
-            twist.linear.x = 0.0
+            #Moves forward with speed 0.1 m/s
+            twist.linear.x = 0.1
             self.get_logger().info('Obstacle detected! Stopping.', throttle_duration_sec=2)
+            #turns to the anticlockwise using angular speed 0.5 rad/s
             twist.angular.z = 0.5
+
+            #detects a distance 0.4 meters from object
+            if 0.0 < obstacle_distance < 0.40:
+                #stops rotating
+                twist.angular.z = 0.0
+                #moves backwards by speed -0.1 m/s
+                twist.linear.x = -0.1
 
         else:
             twist = self.tele_twist
