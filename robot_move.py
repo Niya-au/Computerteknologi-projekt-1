@@ -31,19 +31,15 @@ class Turtlebot3ObstacleDetection(Node):
         print('TurtleBot3 Obstacle Detection - Auto Move Enabled')
         print('----------------------------------------------')
         print('stop angle: -90 ~ 90 deg')
-         print('stop distance: 0.5 m')
+        print('stop distance: 0.5 m')
         print('----------------------------------------------')
 
         self.scan_ranges = []
         self.has_scan_received = False
 
-        #distance at which the robot stops from an object
-        self.stop_distance = 0.5
-        #works with angular velocity
+        self.stop_distance = 0.25
         self.tele_twist = Twist()
-        #intial/base velocity
         self.tele_twist.linear.x = 0.1
-        #initial/base angular velocity
         self.tele_twist.angular.z = 0.0
 
         qos = QoSProfile(depth=10)
@@ -80,29 +76,45 @@ class Turtlebot3ObstacleDetection(Node):
         front_left_range = int(len(self.scan_ranges) * 2 / 5)
         front_right_range = int(len(self.scan_ranges) * 3 / 5)
         right_range = int(len(self.scan_ranges) * 4 / 5)
-   
-    obstacle_distance_left = min(self.scan_ranges[0:left_range])
-    obstacle_distance_front_left = min(self.scan_ranges[left_range:front_left_range])
-    obstacle_distance_front = min(self.scan_ranges[front_left_range:front_right_range])
-    obstacle_distance_front_right = min(self.scan_ranges[front_right_range:right_range])
-    obstacle_distance_right = min(self.scan_ranges[right_range:360])
-      
+
+        obstacle_distance_left = min(self.scan_ranges[-90:-72])
+        print("left distance is:", obstacle_distance_left)
+        obstacle_distance_front_left = min(self.scan_ranges[-72:-36])
+        print("left-front distance is:", obstacle_distance_front_left)
+        obstacle_distance_front_1 = min(self.scan_ranges[-36:-1])
+        obstacle_distance_front_2 = min(self.scan_ranges[0:36])
+        obstacle_distance_front = obstacle_distance_front_1 + obstacle_distance_front_2
+        print("front distance is:", obstacle_distance_front)
+        obstacle_distance_front_right = min(self.scan_ranges[36:72])
+        print("front-right distance is:", obstacle_distance_front_right)
+        obstacle_distance_right = min(self.scan_ranges[72:90])
+        print("right distance is:", obstacle_distance_right)
 
         twist = Twist()
-        #when it detects a distance self.stop_distance from the object
-        if obstacle_distance < self.stop_distance:
-            #Moves forward with speed 0.1 m/s
+
+        if obstacle_distance_front < 0.6:
+           twist.linear.x = 0.0
+           self.get_logger().info('Obstacle detected! Stopping.', throttle_duration_sec=2)
+           twist.linear.x = -0.1
+           twist.angular.z = 0.5
+
+        elif obstacle_distance_left < self.stop_distance:
             twist.linear.x = 0.1
-            self.get_logger().info('Obstacle detected! Stopping.', throttle_duration_sec=2)
-            #turns to the anticlockwise using angular speed 0.5 rad/s
             twist.angular.z = 0.5
 
-            #detects a distance 0.4 meters from object
-            if 0.0 < obstacle_distance < 0.40:
-                #stops rotating
-                twist.angular.z = 0.0
-                #moves backwards by speed -0.1 m/s
-                twist.linear.x = -0.1
+
+        elif obstacle_distance_front_left < self.stop_distance:
+            twist.linear.x = 0.1
+            twist.angular.z = 0.25
+
+        elif obstacle_distance_front_right < self.stop_distance:
+            twist.linear.x = 0.1
+            twist.angular.z = -0.25
+
+        elif obstacle_distance_right < self.stop_distance:
+            twist.linear.x = 0.1
+            twist.angular.z = -0.5
+
 
         else:
             twist = self.tele_twist
