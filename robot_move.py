@@ -72,45 +72,51 @@ class Turtlebot3ObstacleDetection(Node):
             self.detect_obstacle()
 
     def detect_obstacle(self):
-        left_range = int(len(self.scan_ranges) / 5)
-        front_left_range = int(len(self.scan_ranges) * 2 / 5)
-        front_right_range = int(len(self.scan_ranges) * 3 / 5)
-        right_range = int(len(self.scan_ranges) * 4 / 5)
+        #Finds distance from left, right, front, front-left, front-right to an object 
 
+        #ranges given as angles in degrees. Total range is 90 (most right) to -90 (most left) where 0 is center/front 
+        #The self_scan_ranges function returns an array of values. Using min function, the minimum value is taken from the returned data array
         obstacle_distance_left = min(self.scan_ranges[-90:-72])
-        print("left distance is:", obstacle_distance_left)
+        
         obstacle_distance_front_left = min(self.scan_ranges[-72:-36])
-        print("left-front distance is:", obstacle_distance_front_left)
+       
+       #front interval
+       #-36 to -1 range used as the robot has a hard time with transition from positive-negative angle range
         obstacle_distance_front_1 = min(self.scan_ranges[-36:-1])
         obstacle_distance_front_2 = min(self.scan_ranges[0:36])
         obstacle_distance_front = obstacle_distance_front_1 + obstacle_distance_front_2
-        print("front distance is:", obstacle_distance_front)
+        
         obstacle_distance_front_right = min(self.scan_ranges[36:72])
-        print("front-right distance is:", obstacle_distance_front_right)
+        
         obstacle_distance_right = min(self.scan_ranges[72:90])
-        print("right distance is:", obstacle_distance_right)
+       
 
         twist = Twist()
 
+        #the stop distance for front needed to be smaller than the others
         if obstacle_distance_front < 0.6:
            twist.linear.x = 0.0
            self.get_logger().info('Obstacle detected! Stopping.', throttle_duration_sec=2)
            twist.linear.x = -0.1
            twist.angular.z = 0.5
 
+        #robot turns to the right when an object is detected to the left
         elif obstacle_distance_left < self.stop_distance:
             twist.linear.x = 0.1
             twist.angular.z = 0.5
 
-
+        #robot turns to the right when an object is detected to the front-left
         elif obstacle_distance_front_left < self.stop_distance:
             twist.linear.x = 0.1
+            #lower angular speed used for sharper turn (note: for precision try to make it slower)
             twist.angular.z = 0.25
 
+        #robot turns to the left when object is detected to the front-right
         elif obstacle_distance_front_right < self.stop_distance:
             twist.linear.x = 0.1
             twist.angular.z = -0.25
 
+        #robot turns to the left when an object is detected to the right
         elif obstacle_distance_right < self.stop_distance:
             twist.linear.x = 0.1
             twist.angular.z = -0.5
