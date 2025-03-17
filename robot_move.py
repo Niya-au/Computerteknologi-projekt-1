@@ -39,7 +39,9 @@ class Turtlebot3ObstacleDetection(Node):
 
         self.stop_distance = 0.25
         self.tele_twist = Twist()
+        #initial/normal linear speed (basically the speed it automatrically drives with)
         self.tele_twist.linear.x = 0.1
+        #initial/normal angular speed (we don't want to the robot to drive in circles so it's automatic speed is 0)
         self.tele_twist.angular.z = 0.0
 
         qos = QoSProfile(depth=10)
