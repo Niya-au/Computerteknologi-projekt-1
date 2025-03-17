@@ -76,13 +76,17 @@ class Turtlebot3ObstacleDetection(Node):
             self.detect_obstacle()
 
     def detect_obstacle(self):
-        left_range = int(len(self.scan_ranges) / 4)
-        right_range = int(len(self.scan_ranges) * 3 / 4)
-
-        obstacle_distance = min(
-            min(self.scan_ranges[0:left_range]),
-            min(self.scan_ranges[right_range:360])
-        )
+        left_range = int(len(self.scan_ranges) / 5)
+        front_left_range = int(len(self.scan_ranges) * 2 / 5)
+        front_right_range = int(len(self.scan_ranges) * 3 / 5)
+        right_range = int(len(self.scan_ranges) * 4 / 5)
+   
+    obstacle_distance_left = min(self.scan_ranges[0:left_range])
+    obstacle_distance_front_left = min(self.scan_ranges[left_range:front_left_range])
+    obstacle_distance_front = min(self.scan_ranges[front_left_range:front_right_range])
+    obstacle_distance_front_right = min(self.scan_ranges[front_right_range:right_range])
+    obstacle_distance_right = min(self.scan_ranges[right_range:360])
+      
 
         twist = Twist()
         #when it detects a distance self.stop_distance from the object
