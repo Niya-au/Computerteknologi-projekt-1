@@ -156,7 +156,7 @@ class Turtlebot3ObstacleDetection(Node):
 
        #calculated collision count based
         if obstacle_distance_front < 0.17 or obstacle_distance_right < 0.20 or obstacle_distance_left < 0.20 or obstacl>           self.collision_counter = self.collision_counter + 1
-
+           self.collision_counter = self.collision_counter + 1
 
 def main(args=None):
     rclpy.init(args=args)
@@ -165,7 +165,7 @@ def main(args=None):
     #determines how long the program will run
     start_time = time.time()
     end_time = start_time + 30.0
-    
+
     #within the specified time, the program will run
     while time.time() < end_time:
         rclpy.spin_once(turtlebot3_obstacle_detection, timeout_sec=0.1)
