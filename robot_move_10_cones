@@ -1,0 +1,246 @@
+from geometry_msgs.msg import Twist
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile
+from sensor_msgs.msg import LaserScan
+import time
+
+
+class Turtlebot3ObstacleDetection(Node):
+
+    def __init__(self):
+        super().__init__('turtlebot3_obstacle_detection')
+        print('TurtleBot3 Obstacle Detection - Auto Move Enabled')
+        print('----------------------------------------------')
+        print('stop angle: -90 ~ 90 deg')
+        print('stop distance: 0.5 m')
+        print('----------------------------------------------')
+
+        self.scan_ranges = []
+        self.has_scan_received = False
+
+        self.stop_distance = 0.25
+        self.tele_twist = Twist()
+        self.tele_twist.linear.x = 0.15
+        self.tele_twist.angular.z = 0.0
+
+        self.average_linear_speed = 0.0
+        self.speed_updates = 0.0
+        self.speed_accumulation = 0.0
+
+        self.collision_counter = 0.0
+        self.in_collision = False
+
+        qos = QoSProfile(depth=10)
+
+        self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', qos)
+
+        self.scan_sub = self.create_subscription(
+            LaserScan,
+            'scan',
+            self.scan_callback,
+            qos_profile=qos_profile_sensor_data)
+
+        self.cmd_vel_raw_sub = self.create_subscription(
+            Twist,
+            'cmd_vel_raw',
+            self.cmd_vel_raw_callback,
+            qos_profile=qos_profile_sensor_data)
+
+        self.timer = self.create_timer(0.1, self.timer_callback)
+
+    def get_average_speed(self):
+        return self.speed_accumulation/self.speed_updates
+
+    def get_collision_count(self):
+        return self.collision_counter
+
+     
+    def scan_callback(self, msg):
+        self.scan_ranges = msg.ranges
+        self.has_scan_received = True
+
+    def cmd_vel_raw_callback(self, msg):
+        self.tele_twist = msg
+
+    def timer_callback(self):
+        if self.has_scan_received:
+            self.detect_obstacle()
+
+    def stop_robot(self):
+        twist = Twist()
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+        #publishes action
+        self.cmd_vel_pub.publish(twist)
+
+    def detect_obstacle(self):
+
+        #Finds distance from left, right, front, front-left, front-right to an object
+
+        #ranges given as angles in degrees. Total range is 90 (most right) to -90 (most left) where 0 is center/front
+        #The self_scan_ranges function returns an array of values. Using min function, the minimum value is taken from >
+     
+        #front interval
+        #-36 to -1 range used as the robot has a hard time with transition from positive-negative angle range
+        
+        
+        obstacle_distance_1 = min(self.scan_ranges[-90:-72])
+        obstacle_distance_2 = min(self.scan_ranges[-72:-54])
+        obstacle_distance_3 = min(self.scan_ranges[-54:-36])
+        obstacle_distance_4 = min(self.scan_ranges[-36:-18])
+        obstacle_distance_5 = min(self.scan_ranges[-18:-1])
+        obstacle_distance_6 = min(self.scan_ranges[0:18])
+        obstacle_distance_7 = min(self.scan_ranges[18:36])
+        obstacle_distance_8 = min(self.scan_ranges[36:54])
+        obstacle_distance_9 = min(self.scan_ranges[54:72])
+        obstacle_distance_10 = min(self.scan_ranges[72:90])
+       
+        obstacle_most_left = min(obstacle_distance_1,obstacle_distance_2)
+        obstacle_left = min(obstacle_distance_2,obstacle_distance_3)
+        obstacle_left_front = min(obstacle_distance_3,obstacle_distance_4)
+        obstacle_wide_front_left = min(obstacle_distance_4,obstacle_distance_5)
+        
+        obstacle_front = min(obstacle_distance_5,obstacle_distance_6)
+
+        obstacle_wide_front_right = min(obstacle_distance_6,obstacle_distance_7)
+        obstacle_right_front = min(obstacle_distance_7,obstacle_distance_8)
+        obstacle_right = min(obstacle_distance_8,obstacle_distance_9)
+        obstacle_most_right = min(obstacle_distance_9,obstacle_distance_10)
+
+        critical_distance = 0.25
+        awareness_distance = 1.0
+        passage_width = 1.0
+        corner_distance = 0.6
+
+        left_blocked = min(obstacle_distance_3,obstacle_distance_4) < corner_distance
+        front_blocked = min(obstacle_distance_5,obstacle_distance_6) < corner_distance
+        right_blocked = min(obstacle_distance_6,obstacle_distance_7) < corner_distance
+
+        left_side = min(obstacle_distance_3,obstacle_distance_4)
+        front = min(obstacle_distance_5,obstacle_distance_6)
+        right_side = min(obstacle_distance_6,obstacle_distance_7)
+
+        is_narrow_passage = (left_side < passage_width and
+                             right_side < passage_width and
+                             front > critical_distance and
+                             #Checks if the robot is centered in a narrow passage
+                             abs(left_side - right_side) < 0.3)
+
+        twist = Twist()
+
+        #If robot is in a corner it will navigate using this, depending on the type of corner
+        if front_blocked and right_blocked and not left_blocked:
+            twist.linear.x = 0.0
+            twist.angular.z = 0.5
+
+        elif front_blocked and left_blocked and not right_blocked:
+            twist.linear.x = 0.1
+            twist.angular.z = -0.3
+
+        elif front_blocked and right_blocked and left_blocked:
+            twist.linear.x = 0.1
+            twist.angular.z = 0.3
+
+
+        #If the robot is in a narrow passage it will navigate using this
+        elif is_narrow_passage:
+            centering = (left_side - right_side)*0.5
+            twist.linear.x = 0.15
+            twist.angular.z = centering
+            
+
+        #The robot will turn in the direction with the most space, when it ends up in a situation where it has an obstacle in front
+        elif obstacle_front < critical_distance:
+            left =  obstacle_distance_1 + obstacle_distance_2 + obstacle_distance_3 + obstacle_distance_4
+            right = obstacle_distance_7 + obstacle_distance_8 + obstacle_distance_9 + obstacle_distance_10
+            if left < right:
+                twist.linear.x = 0.1
+                twist.angular.z = -0.4
+
+            else:
+                twist.linear.x = 0.1
+                twist.angular.z = 0.4
+        
+        #Sharp turn if obstacle is close to front
+        elif obstacle_wide_front_left:
+            twist.linear.x = 0.1
+            twist.angular.z = -0.5
+
+        elif obstacle_left_front:
+            twist.linear.x = 0.12
+            twist.angular.z = -0.4
+
+        elif obstacle_left:
+            twist.linear.x = 0.15
+            twist.angular.z = -0.3
+
+        #Soft turn if obstacle is far from front
+        elif obstacle_most_left:
+            twist.linear.x = 0.15
+            twist.angular.z = -0.2
+        
+        #Sharp turn if obstacle is close to front
+        elif obstacle_wide_front_right:
+            twist.linear.x = 0.1
+            twist.angular.z = 0.5
+
+        elif obstacle_right_front:
+            twist.linear.x = 0.12
+            twist.angular.z = 0.4
+
+        elif obstacle_right:
+            twist.linear.x = 0.15
+            twist.angular.z = 0.3
+
+        #Soft turn if obstacle is far from front
+        elif obstacle_most_right:
+            twist.linear.x = 0.15
+            twist.angular.z = 0.2
+       
+
+        else:
+            twist = self.tele_twist
+
+        #publish action
+        self.cmd_vel_pub.publish(twist)
+
+        #calculations for average speed calculation
+        self.speed_updates = self.speed_updates + 1
+        self.speed_accumulation = self.speed_accumulation + twist.linear.x
+
+       #calculated collision count based
+        collision_detected = (obstacle_front < 0.17 or obstacle_most_left < 0.20 or obstacle_left < 0.20 or obstacle_left_front < 0.20 or obstacle_wide_front_left < 0.20 or obstacle_most_right < 0.20 or obstacle_right < 0.20 or obstacle_right_front < 0.20 or obstacle_wide_front_right < 0.20)
+        if collision_detected and not self.in_collision:
+            self.collision_counter = self.collision_counter + 1
+            self.in_collision = True
+        elif not collision_detected:
+            self.in_collision = False
+
+def main(args=None):
+    rclpy.init(args=args)
+    turtlebot3_obstacle_detection = Turtlebot3ObstacleDetection()
+
+    #determines how long the program will run
+    start_time = time.time()
+    end_time = start_time + 30.0
+
+    #within the specified time, the program will run
+    while time.time() < end_time:
+        rclpy.spin_once(turtlebot3_obstacle_detection, timeout_sec=0.1)
+
+    #stops the motors after time runs out
+    turtlebot3_obstacle_detection.stop_robot()
+
+    #prints speed and collision count
+    print("Average speed:", turtlebot3_obstacle_detection.get_average_speed())
+    print("\nCollision count:", turtlebot3_obstacle_detection.get_collision_count())
+
+    turtlebot3_obstacle_detection.destroy_node()
+
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
