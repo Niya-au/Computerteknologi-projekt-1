@@ -1,0 +1,41 @@
+from gpiozero import LED
+import smbus
+import time
+
+class RGBVictimDetection:
+    def __init__(self):
+        self.led = LED(17)
+        self.bus = smbus.SMBus(1)
+        self.bus.write_byte_data(0x44, 0x01, 0x05)
+        time.sleep(1)
+        print("Ready to detect colors...\n")
+
+    def get_and_update_colour(self):
+        try:
+            data = self.bus.read_i2c_block_data(0x44, 0x09, 6)
+            green = data[1] + data[0]/256
+            red = data[3] + data[2]/256
+            blue = data[5] + data[4]/256
+
+            print(f"RGB({int(red)} {int(green)} {int(blue)})")
+
+            # Threshold to ignore noise (adjust if needed)
+            if red < 10 and green < 10 and blue < 10:
+                print("No color detected")
+                self.led.off()
+                return
+
+            # Determine dominant color
+            if green > red and green > blue:
+                color = "Green"
+            elif blue > red:
+                color = "Blue"
+            else:
+                color = "Red"
+
+            print("Detected color:", color)
+            self.led.on()  # Turn LED ON when color is detected
+
+        except Exception as e:
+            print("Error reading color sensor:", e)
+            self.led.off()
