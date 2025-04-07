@@ -24,7 +24,48 @@ from rclpy.qos import QoSProfile
 from sensor_msgs.msg import LaserScan
 import time
 
+class RGB_victim_Detection(Node):
 
+   def __init__(self):
+     self.led = LED(17)
+
+ Get I2C bus
+     self.bus = smbus.SMBus(1)
+
+     self.bus.write_byte_data(0x44, 0x01, 0x05)
+
+     self.time.sleep(1)
+
+     print("Reading colour values and displaying them in a new window\n")
+
+   def getAndUpdateColour(self):
+       if True:
+           self.data = self.bus.read_i2c_block_data(0x44, 0x09, 6) #Selects the right registers
+           self.green = self.data[1] + self.data[0]/256 # Calculates the levels of each color [0, 255]
+           self.red = self.data[3] + self.data[2]/256
+           self.blue = self.data[5] + self. data[4]/256
+ # Determines the color based on which has the higher value
+           self.color = ""
+           if self.green > self.red and self.green > self.blue:
+              self.color = "Green"
+           elif self.blue > self.red:
+              self.color = "Blue"
+           else:
+              self.color = "Red"
+
+           print("RGB(%d %d %d)" % (self.red, self.green, self.blue))
+
+           print("The color is: " + self.color)
+
+           if self.color == self.green or self.color == self.red or self.color == self.blue:
+              self.led.on()
+              self.sleep(1)
+              self.led.on()
+              self.sleep(1)
+
+
+           #self.time.sleep(2)
+         
 class Turtlebot3ObstacleDetection(Node):
 
     def __init__(self):
@@ -155,7 +196,7 @@ class Turtlebot3ObstacleDetection(Node):
         self.speed_accumulation = self.speed_accumulation + twist.linear.x
 
        #calculated collision count based
-        if obstacle_distance_front < 0.17 or obstacle_distance_right < 0.20 or obstacle_distance_left < 0.20 or obstacl>           self.collision_counter = self.collision_counter + 1
+        if obstacle_distance_front < 0.17 or obstacle_distance_right < 0.20 or obstacle_distance_left < 0.20 or obstacl>           
            self.collision_counter = self.collision_counter + 1
 
 def main(args=None):
