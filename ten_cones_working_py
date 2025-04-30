@@ -40,7 +40,9 @@ class RGBVictimDetection:
         self.victim_counter = 0.0
         self.in_victim = False
         self.victim_detected = False
-        #self.running = True
+
+        #If the RGB don't stop at the end of execution, uncomment everything with this: (ahh)
+        #(ahh) self._running = True
 
     def get_and_update_colour(self):
         if True:
@@ -64,12 +66,15 @@ class RGBVictimDetection:
 
               print("The color is: " + color)
 
+              #turns LED on if red colour is detected
               if color == "Red":
                 print("red light on")
                 self.led.on()
                 sleep(0.1)
+                #victim is detected
                 self.victim_detected = True
             
+              #when it no longer detects red colour, LED is turned off
               else:
                   self.led.off()
                   sleep(0.1)
@@ -77,30 +82,20 @@ class RGBVictimDetection:
 
               sleep(0.5)
   
+              #if victim is detected then victim counter is incrimented
               if self.victim_detected and not self.in_victim:
                 self.victim_counter = self.victim_counter + 1
                 self.in_victim = True
               elif not self.victim_detected:
                 self.in_victim = False
             
-           # except Exception as e:
-            #    print(f"Error in color detection thread: {e}")
-             #   break
-
     def get_victim_counter(self):
         return self.victim_counter
-    
-    def stop(self):
-        self.running = False
 
-    #def _safe_sleep(self, total_seconds):
-     #   """Sleep but check if stopped."""
-      #  sleep_interval = 0.1  # small chunks
-       # slept = 0.0
-        #while self.running and slept < total_seconds:
-         #   time.sleep(sleep_interval)
-          #  slept += sleep_interval 
-
+    #(ahh) def stop(self):
+        #self._running = False
+        #self.led.off()
+        #self.bus.close()
 
 class Turtlebot3ObstacleDetection(Node):
 
@@ -171,11 +166,10 @@ class Turtlebot3ObstacleDetection(Node):
 
     def detect_obstacle(self):
 
-        #Finds distance from left, right, front, front-left, front-right to an object 
-
         #ranges given as angles in degrees. Total range is 90 (most right) to -90 (most left) where 0 is center/front 
         #The self_scan_ranges function returns an array of values. Using min function, the minimum value is taken from the returned data array
 
+        #split LIDAR into 10 cones
         obstacle_distance_1 = min(self.scan_ranges[-90:-72])
         obstacle_distance_2 = min(self.scan_ranges[-72:-54])
         obstacle_distance_3 = min(self.scan_ranges[-54:-36])
@@ -187,6 +181,7 @@ class Turtlebot3ObstacleDetection(Node):
         obstacle_distance_9 = min(self.scan_ranges[54:72])
         obstacle_distance_10 = min(self.scan_ranges[72:90])
        
+       #Finds distance from left, right, front, front-left, front-right to an object 
         obstacle_most_left = min(obstacle_distance_1,obstacle_distance_2)
         obstacle_left = min(obstacle_distance_2,obstacle_distance_3)
         obstacle_left_front = min(obstacle_distance_3,obstacle_distance_4)
@@ -221,26 +216,23 @@ class Turtlebot3ObstacleDetection(Node):
         twist = Twist()
         
 
-         #If robot  is in a corner it will navigate using this, depending on the type of corner
-
-        
-
         #If the robot is in a narrow passage it will navigate using this
         if is_narrow_passage:
             centering = (left_side - right_side)*0.5
             twist.linear.x = 0.15
             twist.angular.z = centering
 
+        #If the front of the robot is blocked
         elif front_blocked and right_blocked and left_blocked:
             twist.angular.z = 0.3
 
-       #Sharp turn if obstacle is close to front
+       #Sharp turn if obstacle is close to front + right
         elif obstacle_wide_front_right < critical_distance:
             print('obstacle front right')
             twist.linear.x = 0.1
             twist.angular.z = -0.5
 
-        #Sharp turn if obstacle is close to front
+        #Sharp turn if obstacle is close to front + left
         elif obstacle_wide_front_left < critical_distance:
             print('obstacle front left')
             twist.linear.x = 0.1
@@ -303,7 +295,7 @@ class Turtlebot3ObstacleDetection(Node):
         self.speed_updates = self.speed_updates + 1
         self.speed_accumulation = self.speed_accumulation + twist.linear.x
 
-       #calculated collision count based
+       #calculated collision count based 
         collision_detected = (obstacle_front < 0.17 or obstacle_most_left < 0.20 or obstacle_left < 0.20 or obstacle_left_front < 0.20 or obstacle_wide_front_left < 0.20 or obstacle_most_right < 0.20 or obstacle_right < 0.20 or obstacle_right_front < 0.20 or obstacle_wide_front_right < 0.20)
         if collision_detected and not self.in_collision:
             self.collision_counter = self.collision_counter + 1
@@ -314,12 +306,10 @@ class Turtlebot3ObstacleDetection(Node):
            
 def main(args=None):
     rclpy.init(args=args)
+    #initialising obstacle_detection and rgb_detection nodes
     rgb_victim_detection = RGBVictimDetection()
     turtlebot3_obstacle_detection = Turtlebot3ObstacleDetection()
     
-    #threading so it can detect victims and navigate at the same time (or so it seems)
-    #thread = threading.Thread(target=rgb_victim_detection.get_and_update_colour, daemon=True)
-    #thread.start()
 
     #determines how long the program will run
     start_time = time.time() 
@@ -335,14 +325,13 @@ def main(args=None):
     #stops the motors after time runs out
     turtlebot3_obstacle_detection.stop_robot()
 
-    #prints speed and collision count
+    #prints speed, collision count and victim count
     print("Average speed:", turtlebot3_obstacle_detection.get_average_speed())
     print("\nCollision count:", turtlebot3_obstacle_detection.get_collision_count())
-    #rgb_victim_detection.stop()
-    #thread.join()
     print("\nVictim count:", rgb_victim_detection.get_victim_counter())
 
 
+    #(ahh) rgb_victim_detection.stop()
     turtlebot3_obstacle_detection.destroy_node()
     
     
