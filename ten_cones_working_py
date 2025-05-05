@@ -230,48 +230,48 @@ class Turtlebot3ObstacleDetection(Node):
             twist.linear.x = 0.15
             twist.angular.z = centering
 
-        elif front_blocked and right_blocked and left_blocked:
-            print('obstacle front, right, left')
-            twist.angular.z = 0.3
+        #op elif front_blocked and right_blocked and left_blocked:
+            #print('obstacle front, right, left')
+            #twist.angular.z = 0.3
 
-       #Sharp turn if obstacle is close to front
-        elif obstacle_wide_front_right < critical_distance:
-            print('obstacle front right')
-            twist.linear.x = 0.1
-            twist.angular.z = -0.5
+       #op Sharp turn if obstacle is close to front
+        #elif obstacle_wide_front_right < critical_distance:
+         #   print('obstacle front right')
+          #  twist.linear.x = 0.1
+           # twist.angular.z = -0.5
 
-        #Sharp turn if obstacle is close to front
-        elif obstacle_wide_front_left < critical_distance:
-            print('obstacle front left')
-            twist.linear.x = 0.1
-            twist.angular.z = 0.5
+        #op Sharp turn if obstacle is close to front
+        #elif obstacle_wide_front_left < critical_distance:
+         #   print('obstacle front left')
+          #  twist.linear.x = 0.1
+           # twist.angular.z = 0.5
         
-        elif front_blocked:
-            print('obstacle front')
-            twist.angular.z = 0.3
+        # op elif front_blocked:
+         #   print('obstacle front')
+          #  twist.angular.z = 0.3
 
-        elif obstacle_right < 0.3:
-            print('obstacle to the right')
-            twist.linear.x = 0.15
-            twist.angular.z = -0.25
+       #op elif obstacle_right < 0.3:
+        #    print('obstacle to the right')
+         #   twist.linear.x = 0.15
+          #  twist.angular.z = -0.25
 
-        elif obstacle_left < 0.3:
-            print('obstacle to the left')
-            twist.linear.x = 0.15
-            twist.angular.z = 0.25
+        #elif obstacle_left < 0.3:
+         #   print('obstacle to the left')
+          #  twist.linear.x = 0.15
+           # twist.angular.z = 0.25
 
-        #The robot will turn in the direction with the most space, when it ends up in a situation where it has an obstacle in front
-        elif obstacle_front < critical_distance:
-            print('obstacle in front')
-            left =  obstacle_distance_1 + obstacle_distance_2 + obstacle_distance_3 + obstacle_distance_4
-            right = obstacle_distance_7 + obstacle_distance_8 + obstacle_distance_9 + obstacle_distance_10
-            if left < right:
-                twist.linear.x = 0.1
-                twist.angular.z = -0.4
+        # op The robot will turn in the direction with the most space, when it ends up in a situation where it has an obstacle in front
+        #elif obstacle_front < critical_distance:
+         #   print('obstacle in front')
+          #  left =  obstacle_distance_1 + obstacle_distance_2 + obstacle_distance_3 + obstacle_distance_4
+           # right = obstacle_distance_7 + obstacle_distance_8 + obstacle_distance_9 + obstacle_distance_10
+            #if left < right:
+             #   twist.linear.x = 0.1
+              #  twist.angular.z = -0.4
 
-            else:
-                twist.linear.x = 0.1
-                twist.angular.z = 0.4
+            #else:
+             #   twist.linear.x = 0.1
+              #  twist.angular.z = 0.4
         
 
         
@@ -280,24 +280,24 @@ class Turtlebot3ObstacleDetection(Node):
   #          twist.angular.z = 0.4
 
 
-        #Soft turn if obstacle is far from front
-        elif obstacle_most_left < 0.25:
-            twist.linear.x = 0.15
-            twist.angular.z = 0.2
+        # op Soft turn if obstacle is far from front
+        #elif obstacle_most_left < 0.25:
+         #   twist.linear.x = 0.15
+          #  twist.angular.z = 0.2
      
 
 #        elif obstacle_right_front:
  #           twist.linear.x = 0.12
   #          twist.angular.z = -0.4
 
-        #Soft turn if obstacle is far from front
-        elif obstacle_most_right < 0.25:
-            twist.linear.x = 0.15
-            twist.angular.z = -0.2
+        # op Soft turn if obstacle is far from front
+        #elif obstacle_most_right < 0.25:
+         #   twist.linear.x = 0.15
+          #  twist.angular.z = -0.2
        
 
-        else:
-            twist = self.tele_twist
+      #op  else:
+         #   twist = self.tele_twist
 
         #publish action
         self.cmd_vel_pub.publish(twist)
