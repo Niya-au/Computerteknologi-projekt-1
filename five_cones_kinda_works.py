@@ -1,0 +1,425 @@
+
+#!/usr/bin/env python3
+#
+# Copyright 2018 ROBOTIS CO., LTD.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Authors: Jeonggeun Lim, Ryan Shim, Gilbert yaya
+
+from geometry_msgs.msg import Twist
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile
+from sensor_msgs.msg import LaserScan
+import time
+import smbus2 as smbus
+from gpiozero import LED
+from time import sleep
+
+class RGBVictimDetection:
+    def __init__(self):
+        self.led = LED(17)
+        self.bus = smbus.SMBus(1)
+        self.bus.write_byte_data(0x44, 0x01, 0x05)
+        time.sleep(0.1)
+        print("Ready to detect colors...\n")
+
+        self.victim_counter = 0.0
+        self.in_victim = False
+        self.victim_detected = False
+        #self.running = True
+
+    def get_and_update_colour(self):
+        if True:
+            
+              print("Colours are...\n")
+              data = self.bus.read_i2c_block_data(0x44, 0x09, 6) #Selects the right registers
+              green = data[1] + data[0]/256 # Calculates the levels of each color [0, 255]
+              red = data[3] + data[2]/256
+              blue = data[5] + data[4]/256
+
+            # Determines the color based on which has the higher value
+              color = ""
+              if green > red and green > blue: 
+                 color = "Green"
+              elif blue > red:
+                 color = "Blue"
+              else:
+                 color = "Red"
+
+              print("RGB(%d %d %d)" % (red, green, blue))
+
+              print("The color is: " + color)
+
+              if color == "Red":
+                print("red light on")
+                self.led.on()
+                sleep(0.1)
+                self.victim_detected = True
+            
+              else:
+                  self.led.off()
+                  sleep(0.1)
+                  self.victim_detected = False
+
+              sleep(0.5)
+  
+              if self.victim_detected and not self.in_victim:
+                self.victim_counter = self.victim_counter + 1
+                self.in_victim = True
+              elif not self.victim_detected:
+                self.in_victim = False
+            
+           # except Exception as e:
+            #    print(f"Error in color detection thread: {e}")
+             #   break
+
+    def get_victim_counter(self):
+        return self.victim_counter
+    
+    def stop(self):
+        self.running = False
+
+    #def _safe_sleep(self, total_seconds):
+     #   """Sleep but check if stopped."""
+      #  sleep_interval = 0.1  # small chunks
+       # slept = 0.0
+        #while self.running and slept < total_seconds:
+         #   time.sleep(sleep_interval)
+          #  slept += sleep_interval 
+
+
+class Turtlebot3ObstacleDetection(Node):
+
+    def __init__(self):
+        super().__init__('turtlebot3_obstacle_detection')
+        print('TurtleBot3 Obstacle Detection - Auto Move Enabled')
+        print('----------------------------------------------')
+        print('stop angle: -90 ~ 90 deg')
+        print('stop distance: 0.5 m')
+        print('----------------------------------------------')
+
+        self.scan_ranges = []
+        self.has_scan_received = False
+
+        self.stop_distance = 0.25
+        self.tele_twist = Twist()
+        self.tele_twist.linear.x = 0.15
+        self.tele_twist.angular.z = 0.0
+        self.tele_twist.linear.y = 0.0
+
+        self.base_linear_speed = 0.2
+        self.base_angular_speed = 1.3
+
+        self.narrow_passage_linear_speed = 0.15
+        self.narrow_passage_angular_speed = 0.8
+
+        self.average_linear_speed = 0.0
+        self.speed_updates = 0.0
+        self.speed_accumulation = 0.0
+
+        self.collision_counter = 0.0
+        self.in_collision = False
+ 
+        qos = QoSProfile(depth=10)
+
+        self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', qos)
+
+        self.scan_sub = self.create_subscription(
+            LaserScan,
+            'scan',
+            self.scan_callback,
+            qos_profile=qos_profile_sensor_data)
+
+        self.cmd_vel_raw_sub = self.create_subscription(
+            Twist,
+            'cmd_vel_raw',
+            self.cmd_vel_raw_callback,
+            qos_profile=qos_profile_sensor_data)
+
+        self.timer = self.create_timer(0.1, self.timer_callback)
+
+    def get_average_speed(self):
+        return self.speed_accumulation/self.speed_updates
+
+    def get_collision_count(self):
+        return self.collision_counter
+
+    def scan_callback(self, msg):
+        self.scan_ranges = msg.ranges
+        self.has_scan_received = True
+
+    def cmd_vel_raw_callback(self, msg):
+        self.tele_twist = msg
+
+    def timer_callback(self):
+        if self.has_scan_received:
+            self.detect_obstacle()
+
+    def stop_robot(self):
+        twist = Twist()
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+        #publishes action
+        self.cmd_vel_pub.publish(twist)
+
+    def detect_obstacle(self):
+
+        #Finds distance from left, right, front, front-left, front-right to an object 
+
+        #ranges given as angles in degrees. Total range is 90 (most right) to -90 (most left) where 0 is center/front 
+        #The self_scan_ranges function returns an array of values. Using min function, the minimum value is taken from the returned data array
+       
+        obstacle_distance_left = min(self.scan_ranges[-90:-72])
+
+        obstacle_distance_front_left = min(self.scan_ranges[-72:-36])
+
+        #front interval
+        #-36 to -1 range used as the robot has a hard time with transition from positive-negative angle range
+        obstacle_distance_front_1 = min(self.scan_ranges[-36:-1])
+        obstacle_distance_front_2 = min(self.scan_ranges[0:36])
+        obstacle_distance_front = min(obstacle_distance_front_1, obstacle_distance_front_2)
+
+        obstacle_distance_front_right = min(self.scan_ranges[36:72])
+
+        obstacle_distance_right = min(self.scan_ranges[72:90])
+
+        wide_right = obstacle_distance_right + obstacle_distance_front_right
+        wide_left = obstacle_distance_left + obstacle_distance_front_left
+
+        passage_width = obstacle_distance_left + obstacle_distance_right
+        off_center = obstacle_distance_left - obstacle_distance_right
+        absolute_off_center = abs(off_center)
+       
+        '''obstacle_distance_1 = min(self.scan_ranges[-90:-72])
+        obstacle_distance_2 = min(self.scan_ranges[-72:-54])
+        obstacle_distance_3 = min(self.scan_ranges[-54:-36])
+        obstacle_distance_4 = min(self.scan_ranges[-36:-18])
+        obstacle_distance_5 = min(self.scan_ranges[-18:-1])
+        obstacle_distance_6 = min(self.scan_ranges[0:18])
+        obstacle_distance_7 = min(self.scan_ranges[18:36])
+        obstacle_distance_8 = min(self.scan_ranges[36:54])
+        obstacle_distance_9 = min(self.scan_ranges[54:72])
+        obstacle_distance_10 = min(self.scan_ranges[72:90])
+       
+        obstacle_left = min(obstacle_distance_1,obstacle_distance_2)
+        obstacle_left_front = min(obstacle_distance_3,obstacle_distance_4)
+        
+        obstacle_front = min(obstacle_distance_5,obstacle_distance_6)
+
+        obstacle_right_front = min(obstacle_distance_7,obstacle_distance_8)
+        obstacle_right = min(obstacle_distance_9,obstacle_distance_10)
+
+        critical_distance = 0.23
+        awareness_distance = 1.0
+        passage_width = obstacle_left + obstacle_right #1.0
+        minimum_passage_width = 0.5
+        corner_distance = 0.5
+
+        left_blocked = min(obstacle_left,obstacle_left_front) < corner_distance
+        front_blocked = min(obstacle_front,obstacle_right_front,obstacle_left_front) < corner_distance
+        right_blocked = min(obstacle_right,obstacle_right_front) < corner_distance
+
+        #cones 1, 2, 3, 4
+        big_left_side = min(obstacle_left,obstacle_left_front)
+        #cones 3, 4, 5, 6, 7, 8
+        big_front = min(obstacle_front,obstacle_right_front,obstacle_left_front)
+        #cones 7, 8, 9, 10
+        big_right_side = min(obstacle_right,obstacle_right_front)
+
+        is_narrow_passage = (big_left_side < passage_width and
+                             big_right_side < passage_width and
+                             big_front > critical_distance and
+                             #Checks if the robot is centered in a narrow passage
+                             abs(big_left_side - big_right_side) < 0.3)'''
+
+        twist = Twist()
+        
+
+         #If robot  is in a corner it will navigate using this, depending on the type of corner
+         
+        #narrow passage
+        if (passage_width < 1.2): #and obstacle_distance_front > 0.3
+             print('obstacle in narrow passage')
+             if absolute_off_center > 0.05:
+                 twist.linear.x = self.narrow_passage_linear_speed
+                 twist.angular.z = self.narrow_passage_angular_speed
+                
+                 if off_center > 0:
+                     twist.linear.x = 0.05
+                     twist.angular.z = self.narrow_passage_angular_speed*0.3
+                
+                 else:
+                     twist.linear.x = 0.0
+                     twist.angular.z = -self.narrow_passage_angular_speed*0.3
+
+             else:
+                 twist.linear.x = self.average_linear_speed
+                 twist.angular.z = 0.0
+
+       #obstacle is in front
+        if obstacle_distance_front < 0.34:
+             print('obstacle in front')
+             #turns to left if distance from obstalce to the right is larger than left
+             reverse_twist = Twist()
+             reverse_twist.linear.x = -0.1  # reverse speed
+             reverse_twist.angular.z = 0.0
+             self.cmd_vel_pub.publish(reverse_twist)
+             time.sleep(0.5)
+
+             if wide_right - wide_left > 0.06:
+                    print('front: right')
+                    twist.linear.x = 0.05
+                    twist.angular.z = self.base_angular_speed*0.5 #0.7
+
+             else:
+                    print('front: left')
+                    twist.linear.x = 0.05
+                    twist.angular.z = -self.base_angular_speed*0.5 #0.7
+
+        elif obstacle_distance_front_left < 0.22:
+            print('obstacle in front left')
+            twist.angular.z = self.base_angular_speed*0.7
+            twist.linear.x = self.base_linear_speed*0.0 #0.4 #0.6
+        
+        elif  obstacle_distance_left < 0.11:
+            print('obstacle in left')
+            twist.angular.z = self.base_angular_speed*0.2
+            twist.linear.x = self.base_linear_speed*0.7 #0.9
+        
+        elif obstacle_distance_front_right < 0.22:
+            print('obstacle in front right')
+            twist.angular.z = -self.base_angular_speed*0.7
+            twist.linear.x = self.base_linear_speed*0.4 #0.6
+        
+        elif  obstacle_distance_right < 0.11:
+            print('obstacle in right')
+            twist.angular.z = -self.base_angular_speed*0.2
+            twist.linear.x = self.base_linear_speed*0.0 #0.7 #0.9
+
+        else:
+         twist = self.tele_twist
+
+         #publish action
+        self.cmd_vel_pub.publish(twist)
+
+        #calculations for average speed calculation
+        self.speed_updates = self.speed_updates + 1
+        self.speed_accumulation = self.speed_accumulation + twist.linear.x
+
+       #calculated collision count based
+        collision_detected = (obstacle_distance_front < 0.17 or obstacle_distance_left < 0.20 or obstacle_distance_front_left < 0.20 or obstacle_distance_right < 0.20 or obstacle_distance_front_right < 0.20)
+        if collision_detected and not self.in_collision:
+            self.collision_counter = self.collision_counter + 1
+            self.in_collision = True
+        elif not collision_detected:
+            self.in_collision = False
+
+        ''' if is_narrow_passage:
+            centering = obstacle_left - obstacle_right #(big_left_side - big_right_side)*0.5
+            if (passage_width < minimum_passage_width*2 and obstacle_front > minimum_passage_width ):
+                if abs(centering) > 0.05:  
+                    twist.linear.x = 0.15
+                if centering > 0: 
+                    twist.angular.z = 0.4
+                else:  
+                    twist.angular.z = -0.4
+            else:
+                
+                twist.linear.x = 0.15
+                twist.angular.z = 0.0
+            
+            twist.linear.x = 0.15
+            twist.angular.z = centering
+        
+        if obstacle_front < critical_distance or big_front < critical_distance:
+            print('obstacle in front, distance =', obstacle_front)
+            left =  obstacle_distance_1 + obstacle_distance_2 + obstacle_distance_3 + obstacle_distance_4
+            right = obstacle_distance_7 + obstacle_distance_8 + obstacle_distance_9 + obstacle_distance_10
+            if left < right:
+                twist.linear.x = 0.0 #0.1
+                twist.angular.z = -1.0
+
+            else:
+                twist.linear.x = 0.1
+                twist.angular.z = 1.0
+
+       #If the robot is in a narrow passage it will navigate using this
+       # if front_blocked and right_blocked and left_blocked:
+        #    print('obstacle front, right, left')
+          #  twist.angular.z = 0.5
+
+        #op Sharp turn if obstacle is close to front
+        elif obstacle_right_front < critical_distance:
+            print('obstacle front right')
+            twist.linear.x = 0.1
+            twist.angular.z = -0.5
+
+        #op Sharp turn if obstacle is close to front
+        elif obstacle_left_front < critical_distance:
+            print('obstacle front left')
+            twist.linear.x = 0.1
+            twist.angular.z = 0.5
+
+        elif obstacle_right < 0.3:
+            print('obstacle to the right')
+            twist.linear.x = 0.15
+            twist.angular.z = -0.25
+
+        elif obstacle_left < 0.3:
+            print('obstacle to the left')
+            twist.linear.x = 0.15
+            twist.angular.z = 0.25'''
+
+           
+def main(args=None):
+    rclpy.init(args=args)
+    rgb_victim_detection = RGBVictimDetection()
+    turtlebot3_obstacle_detection = Turtlebot3ObstacleDetection()
+    
+    #threading so it can detect victims and navigate at the same time (or so it seems)
+    #thread = threading.Thread(target=rgb_victim_detection.get_and_update_colour, daemon=True)
+    #thread.start()
+
+    #determines how long the program will run
+    start_time = time.time() 
+    end_time = start_time + 90.0
+
+    #within the specified time, the program will run
+    while time.time() < end_time:
+        
+        rclpy.spin_once(turtlebot3_obstacle_detection, timeout_sec=0.1)
+        rgb_victim_detection.get_and_update_colour()
+
+
+    #stops the motors after time runs out
+    turtlebot3_obstacle_detection.stop_robot()
+
+    #prints speed and collision count
+    print("Average speed:", turtlebot3_obstacle_detection.get_average_speed())
+    print("\nCollision count:", turtlebot3_obstacle_detection.get_collision_count())
+    #rgb_victim_detection.stop()
+    #thread.join()
+    print("\nVictim count:", rgb_victim_detection.get_victim_counter())
+
+
+    turtlebot3_obstacle_detection.destroy_node()
+    
+    
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
