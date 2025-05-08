@@ -149,7 +149,33 @@ class Turtlebot3ObstacleDetection(Node):
             self.cmd_vel_raw_callback,
             qos_profile=qos_profile_sensor_data)
 
-        self.timer = self.create_timer(0.1, self.timer_callback)
+        self.timer = self.create_timer(0.08, self.timer_callback)
+
+    def filter_scan_ranges(self, scan_ranges):
+        if not scan_ranges:
+            return []
+        
+        MIN_RANGE = 0.15  # Minimum valid distance in meters
+        MAX_RANGE = 3.5   # Maximum valid distance in meters
+        
+        filtered_ranges = []
+        
+        for range_value in scan_ranges:
+            # Check if value is NaN or inf
+            if not isinstance(range_value, (int, float)) or range_value != range_value:  # NaN check
+                filtered_ranges.append(MAX_RANGE)
+            # Check if value is below minimum threshold
+            elif range_value < MIN_RANGE:
+                filtered_ranges.append(MIN_RANGE)
+            # Check if value is above maximum threshold
+            elif range_value > MAX_RANGE:
+                filtered_ranges.append(MAX_RANGE)
+            # Value is within valid range
+            else:
+                filtered_ranges.append(range_value)
+        
+        return filtered_ranges
+        
 
     def get_average_speed(self):
         return self.speed_accumulation/self.speed_updates
@@ -158,7 +184,8 @@ class Turtlebot3ObstacleDetection(Node):
         return self.collision_counter
 
     def scan_callback(self, msg):
-        self.scan_ranges = msg.ranges
+        #self.scan_ranges = msg.ranges
+        self.scan_ranges = self.filter_scan_ranges(msg.ranges)
         self.has_scan_received = True
 
     def cmd_vel_raw_callback(self, msg):
@@ -175,9 +202,20 @@ class Turtlebot3ObstacleDetection(Node):
         #publishes action
         self.cmd_vel_pub.publish(twist)
 
-    def detect_obstacle(self):
+    '''def turn_for_duration(self, linear_speed, angular_speed, duration):
+        twist = Twist()
+        twist.linear.x = linear_speed
+        twist.angular.z = angular_speed
 
-        #Finds distance from left, right, front, front-left, front-right to an object 
+        start_time = time.time()
+        while time.time() - start_time < duration:
+            self.cmd_vel_pub.publish(twist)
+            time.sleep(0.005)  # faster updates
+
+       # self.stop_robot()  # Stop after turning'''
+
+    def detect_obstacle(self):
+#Finds distance from left, right, front, front-left, front-right to an object 
 
         #ranges given as angles in degrees. Total range is 90 (most right) to -90 (most left) where 0 is center/front 
         #The self_scan_ranges function returns an array of values. Using min function, the minimum value is taken from the returned data array
@@ -203,55 +241,13 @@ class Turtlebot3ObstacleDetection(Node):
         off_center = obstacle_distance_left - obstacle_distance_right
         absolute_off_center = abs(off_center)
        
-        '''obstacle_distance_1 = min(self.scan_ranges[-90:-72])
-        obstacle_distance_2 = min(self.scan_ranges[-72:-54])
-        obstacle_distance_3 = min(self.scan_ranges[-54:-36])
-        obstacle_distance_4 = min(self.scan_ranges[-36:-18])
-        obstacle_distance_5 = min(self.scan_ranges[-18:-1])
-        obstacle_distance_6 = min(self.scan_ranges[0:18])
-        obstacle_distance_7 = min(self.scan_ranges[18:36])
-        obstacle_distance_8 = min(self.scan_ranges[36:54])
-        obstacle_distance_9 = min(self.scan_ranges[54:72])
-        obstacle_distance_10 = min(self.scan_ranges[72:90])
-       
-        obstacle_left = min(obstacle_distance_1,obstacle_distance_2)
-        obstacle_left_front = min(obstacle_distance_3,obstacle_distance_4)
-        
-        obstacle_front = min(obstacle_distance_5,obstacle_distance_6)
-
-        obstacle_right_front = min(obstacle_distance_7,obstacle_distance_8)
-        obstacle_right = min(obstacle_distance_9,obstacle_distance_10)
-
-        critical_distance = 0.23
-        awareness_distance = 1.0
-        passage_width = obstacle_left + obstacle_right #1.0
-        minimum_passage_width = 0.5
-        corner_distance = 0.5
-
-        left_blocked = min(obstacle_left,obstacle_left_front) < corner_distance
-        front_blocked = min(obstacle_front,obstacle_right_front,obstacle_left_front) < corner_distance
-        right_blocked = min(obstacle_right,obstacle_right_front) < corner_distance
-
-        #cones 1, 2, 3, 4
-        big_left_side = min(obstacle_left,obstacle_left_front)
-        #cones 3, 4, 5, 6, 7, 8
-        big_front = min(obstacle_front,obstacle_right_front,obstacle_left_front)
-        #cones 7, 8, 9, 10
-        big_right_side = min(obstacle_right,obstacle_right_front)
-
-        is_narrow_passage = (big_left_side < passage_width and
-                             big_right_side < passage_width and
-                             big_front > critical_distance and
-                             #Checks if the robot is centered in a narrow passage
-                             abs(big_left_side - big_right_side) < 0.3)'''
-
         twist = Twist()
         
 
          #If robot  is in a corner it will navigate using this, depending on the type of corner
          
         #narrow passage
-        if (passage_width < 1.2): #and obstacle_distance_front > 0.3
+        if (passage_width < 0.5 and obstacle_distance_front > 0.3):
              print('obstacle in narrow passage')
              if absolute_off_center > 0.05:
                  twist.linear.x = self.narrow_passage_linear_speed
@@ -259,25 +255,27 @@ class Turtlebot3ObstacleDetection(Node):
                 
                  if off_center > 0:
                      twist.linear.x = 0.05
-                     twist.angular.z = self.narrow_passage_angular_speed*0.3
+                     twist.angular.z = self.narrow_passage_angular_speed*0.5
+                     #self.turn_for_duration(0.05, 0.5, 0.8)
                 
                  else:
                      twist.linear.x = 0.0
-                     twist.angular.z = -self.narrow_passage_angular_speed*0.3
+                     twist.angular.z = -self.narrow_passage_angular_speed*0.5
 
              else:
                  twist.linear.x = self.average_linear_speed
                  twist.angular.z = 0.0
 
        #obstacle is in front
-        if obstacle_distance_front < 0.34:
+        if obstacle_distance_front < 0.25:
              print('obstacle in front')
              #turns to left if distance from obstalce to the right is larger than left
-             reverse_twist = Twist()
-             reverse_twist.linear.x = -0.1  # reverse speed
-             reverse_twist.angular.z = 0.0
-             self.cmd_vel_pub.publish(reverse_twist)
-             time.sleep(0.5)
+             if(self.in_collision == True):
+                reverse_twist = Twist()
+                reverse_twist.linear.x = -0.1  # reverse speed
+                reverse_twist.angular.z = 0.0
+                self.cmd_vel_pub.publish(reverse_twist)
+                time.sleep(0.4)
 
              if wide_right - wide_left > 0.06:
                     print('front: right')
@@ -289,25 +287,29 @@ class Turtlebot3ObstacleDetection(Node):
                     twist.linear.x = 0.05
                     twist.angular.z = -self.base_angular_speed*0.5 #0.7
 
-        elif obstacle_distance_front_left < 0.22:
+        elif obstacle_distance_front_left < 0.4:
             print('obstacle in front left')
             twist.angular.z = self.base_angular_speed*0.7
             twist.linear.x = self.base_linear_speed*0.0 #0.4 #0.6
+            #self.turn_for_duration(self.base_linear_speed*0.0 , self.base_angular_speed*0.7, 0.8)
         
-        elif  obstacle_distance_left < 0.11:
+        elif  obstacle_distance_left < 0.4:
             print('obstacle in left')
             twist.angular.z = self.base_angular_speed*0.2
             twist.linear.x = self.base_linear_speed*0.7 #0.9
+            #self.turn_for_duration(self.base_linear_speed*0.7, self.base_angular_speed*0.2, 0.8)
         
-        elif obstacle_distance_front_right < 0.22:
+        elif obstacle_distance_front_right < 0.4:
             print('obstacle in front right')
             twist.angular.z = -self.base_angular_speed*0.7
             twist.linear.x = self.base_linear_speed*0.4 #0.6
+            #self.turn_for_duration(-self.base_angular_speed*0.7, self.base_linear_speed*0.4, 0.8)
         
-        elif  obstacle_distance_right < 0.11:
+        elif  obstacle_distance_right < 0.4:
             print('obstacle in right')
             twist.angular.z = -self.base_angular_speed*0.2
             twist.linear.x = self.base_linear_speed*0.0 #0.7 #0.9
+            #self.turn_for_duration(-self.base_angular_speed*0.2, self.base_linear_speed*0.0,  0.8)
 
         else:
          twist = self.tele_twist
@@ -320,68 +322,12 @@ class Turtlebot3ObstacleDetection(Node):
         self.speed_accumulation = self.speed_accumulation + twist.linear.x
 
        #calculated collision count based
-        collision_detected = (obstacle_distance_front < 0.17 or obstacle_distance_left < 0.20 or obstacle_distance_front_left < 0.20 or obstacle_distance_right < 0.20 or obstacle_distance_front_right < 0.20)
+        collision_detected = (obstacle_distance_front < 0.20 or obstacle_distance_left < 0.15 or obstacle_distance_front_left < 0.15 or obstacle_distance_right < 0.15 or obstacle_distance_front_right < 0.15)
         if collision_detected and not self.in_collision:
             self.collision_counter = self.collision_counter + 1
             self.in_collision = True
         elif not collision_detected:
             self.in_collision = False
-
-        ''' if is_narrow_passage:
-            centering = obstacle_left - obstacle_right #(big_left_side - big_right_side)*0.5
-            if (passage_width < minimum_passage_width*2 and obstacle_front > minimum_passage_width ):
-                if abs(centering) > 0.05:  
-                    twist.linear.x = 0.15
-                if centering > 0: 
-                    twist.angular.z = 0.4
-                else:  
-                    twist.angular.z = -0.4
-            else:
-                
-                twist.linear.x = 0.15
-                twist.angular.z = 0.0
-            
-            twist.linear.x = 0.15
-            twist.angular.z = centering
-        
-        if obstacle_front < critical_distance or big_front < critical_distance:
-            print('obstacle in front, distance =', obstacle_front)
-            left =  obstacle_distance_1 + obstacle_distance_2 + obstacle_distance_3 + obstacle_distance_4
-            right = obstacle_distance_7 + obstacle_distance_8 + obstacle_distance_9 + obstacle_distance_10
-            if left < right:
-                twist.linear.x = 0.0 #0.1
-                twist.angular.z = -1.0
-
-            else:
-                twist.linear.x = 0.1
-                twist.angular.z = 1.0
-
-       #If the robot is in a narrow passage it will navigate using this
-       # if front_blocked and right_blocked and left_blocked:
-        #    print('obstacle front, right, left')
-          #  twist.angular.z = 0.5
-
-        #op Sharp turn if obstacle is close to front
-        elif obstacle_right_front < critical_distance:
-            print('obstacle front right')
-            twist.linear.x = 0.1
-            twist.angular.z = -0.5
-
-        #op Sharp turn if obstacle is close to front
-        elif obstacle_left_front < critical_distance:
-            print('obstacle front left')
-            twist.linear.x = 0.1
-            twist.angular.z = 0.5
-
-        elif obstacle_right < 0.3:
-            print('obstacle to the right')
-            twist.linear.x = 0.15
-            twist.angular.z = -0.25
-
-        elif obstacle_left < 0.3:
-            print('obstacle to the left')
-            twist.linear.x = 0.15
-            twist.angular.z = 0.25'''
 
            
 def main(args=None):
