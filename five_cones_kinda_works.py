@@ -83,10 +83,7 @@ class RGBVictimDetection:
                 self.in_victim = True
               elif not self.victim_detected:
                 self.in_victim = False
-            
-           # except Exception as e:
-            #    print(f"Error in color detection thread: {e}")
-             #   break
+
 
     def get_victim_counter(self):
         return self.victim_counter
@@ -94,13 +91,6 @@ class RGBVictimDetection:
     def stop(self):
         self.running = False
 
-    #def _safe_sleep(self, total_seconds):
-     #   """Sleep but check if stopped."""
-      #  sleep_interval = 0.1  # small chunks
-       # slept = 0.0
-        #while self.running and slept < total_seconds:
-         #   time.sleep(sleep_interval)
-          #  slept += sleep_interval 
 
 
 class Turtlebot3ObstacleDetection(Node):
@@ -205,17 +195,6 @@ class Turtlebot3ObstacleDetection(Node):
         #publishes action
         self.cmd_vel_pub.publish(twist)
 
-    '''def turn_for_duration(self, linear_speed, angular_speed, duration):
-        twist = Twist()
-        twist.linear.x = linear_speed
-        twist.angular.z = angular_speed
-
-        start_time = time.time()
-        while time.time() - start_time < duration:
-            self.cmd_vel_pub.publish(twist)
-            time.sleep(0.005)  # faster updates
-
-       # self.stop_robot()  # Stop after turning'''
 
     ############################################################################################################
     ############################################### ROBOT NAVIGATION ###########################################
@@ -311,15 +290,13 @@ class Turtlebot3ObstacleDetection(Node):
             #sharp turn
             twist.angular.z = self.base_angular_speed*0.7
             twist.linear.x = self.base_linear_speed*0.0 #0.4 #0.6
-            #self.turn_for_duration(self.base_linear_speed*0.0 , self.base_angular_speed*0.7, 0.8)
         
         #obstacle near (back) left cone
         elif  obstacle_distance_left < self.stop_distance:
             print('obstacle in left')
             #soft turn
             twist.angular.z = self.base_angular_speed*0.2
-            twist.linear.x = self.base_linear_speed*0.7 #0.9
-            #self.turn_for_duration(self.base_linear_speed*0.7, self.base_angular_speed*0.2, 0.8)
+            twist.linear.x = self.base_linear_speed*0.7
         
         #obstacle near front right cone
         elif obstacle_distance_front_right < self.stop_distance:
@@ -327,15 +304,13 @@ class Turtlebot3ObstacleDetection(Node):
             #sharp turn
             twist.angular.z = -self.base_angular_speed*0.7
             twist.linear.x = self.base_linear_speed*0.4 
-            #self.turn_for_duration(-self.base_angular_speed*0.7, self.base_linear_speed*0.4, 0.8)
         
         #obstacle near (back) right cone
         elif  obstacle_distance_right < self.stop_distance:
             print('obstacle in right')
             #soft turn
             twist.angular.z = -self.base_angular_speed*0.2
-            twist.linear.x = self.base_linear_speed*0.0 
-            #self.turn_for_duration(-self.base_angular_speed*0.2, self.base_linear_speed*0.0,  0.8)
+            twist.linear.x = self.base_linear_speed*0.7 
 
         else:
          twist = self.tele_twist
