@@ -107,6 +107,7 @@ class Turtlebot3ObstacleDetection(Node):
         self.has_scan_received = False
 
         self.stop_distance = 0.4
+        self.critical_distance = 0.4
         self.tele_twist = Twist()
         self.tele_twist.linear.x = 0.15
         self.tele_twist.angular.z = 0.0
@@ -285,28 +286,28 @@ class Turtlebot3ObstacleDetection(Node):
                     twist.angular.z = -self.base_angular_speed*0.5 #0.7
 
         #obstacle near front left cone
-        elif obstacle_distance_front_left < self.stop_distance:
+        elif obstacle_distance_front_left < self.critical_distance:
             print('obstacle in front left')
             #sharp turn
             twist.angular.z = self.base_angular_speed*0.7
             twist.linear.x = self.base_linear_speed*0.0 #0.4 #0.6
         
         #obstacle near (back) left cone
-        elif  obstacle_distance_left < self.stop_distance:
+        elif  obstacle_distance_left < self.critical_distance:
             print('obstacle in left')
             #soft turn
             twist.angular.z = self.base_angular_speed*0.2
             twist.linear.x = self.base_linear_speed*0.7
         
         #obstacle near front right cone
-        elif obstacle_distance_front_right < self.stop_distance:
+        elif obstacle_distance_front_right < self.critical_distance:
             print('obstacle in front right')
             #sharp turn
             twist.angular.z = -self.base_angular_speed*0.7
             twist.linear.x = self.base_linear_speed*0.4 
         
         #obstacle near (back) right cone
-        elif  obstacle_distance_right < self.stop_distance:
+        elif  obstacle_distance_right < self.critical_distance:
             print('obstacle in right')
             #soft turn
             twist.angular.z = -self.base_angular_speed*0.2
