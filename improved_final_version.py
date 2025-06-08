@@ -23,18 +23,19 @@ from rclpy.qos import qos_profile_sensor_data
 from rclpy.qos import QoSProfile
 from sensor_msgs.msg import LaserScan
 import time
-#import smbus2 as smbus
-#from gpiozero import LED
+import smbus2 as smbus
+from gpiozero import LED
 from time import sleep
-import threading
-
+###############################################################################################################
+############################################## VICTIM DETECTION ###############################################
+###############################################################################################################
 class RGBVictimDetection:
     def __init__(self):
-        '''self.led = LED(17)
+        self.led = LED(17)
         self.bus = smbus.SMBus(1)
         self.bus.write_byte_data(0x44, 0x01, 0x05)
         time.sleep(0.1)
-        print("Ready to detect colors...\n")'''
+        print("Ready to detect colors...\n")
 
         self.victim_counter = 0.0
         self.in_victim = False
@@ -42,16 +43,7 @@ class RGBVictimDetection:
         #self.running = True
 
     def get_and_update_colour(self):
-        import random
-        color = random.choice(["Red", "Green", "Blue"])
-        #print("The color is:", color)
-        self.victim_detected = (color == "Red")
-        if self.victim_detected and not self.in_victim:
-            self.victim_counter += 1
-            self.in_victim = True
-        elif not self.victim_detected:
-            self.in_victim = False
-        '''if True:
+        if True:
             
               print("Colours are...\n")
               data = self.bus.read_i2c_block_data(0x44, 0x09, 6) #Selects the right registers
@@ -89,26 +81,14 @@ class RGBVictimDetection:
                 self.victim_counter = self.victim_counter + 1
                 self.in_victim = True
               elif not self.victim_detected:
-                self.in_victim = False'''
-            
-           # except Exception as e:
-            #    print(f"Error in color detection thread: {e}")
-             #   break
+                self.in_victim = False
+
 
     def get_victim_counter(self):
         return self.victim_counter
     
     def stop(self):
         self.running = False
-
-    #def _safe_sleep(self, total_seconds):
-     #   """Sleep but check if stopped."""
-      #  sleep_interval = 0.1  # small chunks
-       # slept = 0.0
-        #while self.running and slept < total_seconds:
-         #   time.sleep(sleep_interval)
-          #  slept += sleep_interval 
-
 
 class Turtlebot3ObstacleDetection(Node):
 
@@ -212,17 +192,6 @@ class Turtlebot3ObstacleDetection(Node):
         #publishes action
         self.cmd_vel_pub.publish(twist)
 
-    '''def turn_for_duration(self, linear_speed, angular_speed, duration):
-        twist = Twist()
-        twist.linear.x = linear_speed
-        twist.angular.z = angular_speed
-
-        start_time = time.time()
-        while time.time() - start_time < duration:
-            self.cmd_vel_pub.publish(twist)
-            time.sleep(0.005)  # faster updates
-
-       # self.stop_robot()  # Stop after turning'''
 
     ############################################################################################################
     ############################################### ROBOT NAVIGATION ###########################################
@@ -274,7 +243,6 @@ class Turtlebot3ObstacleDetection(Node):
                  if off_center > 0:
                      twist.linear.x = 0.05
                      twist.angular.z = self.narrow_passage_angular_speed*0.5
-                     #self.turn_for_duration(0.05, 0.5, 0.8)
                 
                 #otherwise robot is too close to the right of narrow passage, so it rotates to the left to realign
                  else:
@@ -318,7 +286,6 @@ class Turtlebot3ObstacleDetection(Node):
             #sharp turn
             twist.angular.z = self.base_angular_speed*0.7
             twist.linear.x = self.base_linear_speed*0.4 
-            #self.turn_for_duration(self.base_linear_speed*0.0 , self.base_angular_speed*0.7, 0.8)
         
         #obstacle near (back) left cone
         elif  obstacle_distance_left < self.stop_distance:
@@ -326,7 +293,6 @@ class Turtlebot3ObstacleDetection(Node):
             #soft turn
             twist.angular.z = self.base_angular_speed*0.2
             twist.linear.x = self.base_linear_speed*0.7 
-            #self.turn_for_duration(self.base_linear_speed*0.7, self.base_angular_speed*0.2, 0.8)
         
         #obstacle near front right cone
         elif obstacle_distance_front_right < self.stop_distance:
@@ -334,7 +300,6 @@ class Turtlebot3ObstacleDetection(Node):
             #sharp turn
             twist.angular.z = -self.base_angular_speed*0.7
             twist.linear.x = self.base_linear_speed*0.4 
-            #self.turn_for_duration(-self.base_angular_speed*0.7, self.base_linear_speed*0.4, 0.8)
         
         #obstacle near (back) right cone
         elif  obstacle_distance_right < self.stop_distance:
@@ -342,7 +307,6 @@ class Turtlebot3ObstacleDetection(Node):
             #soft turn
             twist.angular.z = -self.base_angular_speed*0.2
             twist.linear.x = self.base_linear_speed*0.7
-            #self.turn_for_duration(-self.base_angular_speed*0.2, self.base_linear_speed*0.0,  0.8)
 
         else:
          twist = self.tele_twist
